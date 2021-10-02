@@ -1,0 +1,14 @@
+[DEFAULT]
+; Путь к файлу с расписанием
+filename=schedule.xls
+
+[STRINGS]
+distant=Дистанционно
+teacher=Преподаватель
+
+[EXCEL]
+; Все индексы ячеек на 1 меньше относительно Excel
+row_begin=10
+col_day=20
+col_time=21
+col_class=22

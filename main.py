@@ -2,14 +2,14 @@ import xlrd
 import re
 import json
 from time import strftime, strptime
-
-temp = None
+import configparser
 
 
 # Это либо гениально, либо очень тупо, но эта функция записывает значение в глобальную переменную
 # когда аргумент передается и возвращает последнее записанное значение, когда аргумента нет
 # Нужно для того, чтобы объявить переменную и сразу использовать ее значение в той же строке
 # В PHP это работает из коробки: a = b = [] -> a = []
+temp = None
 def _(*args):
     global temp
     if len(args) == 1:
@@ -58,7 +58,7 @@ def parse_class(day, time, content):
 
     # Дистант
     if _(re.match(r'.*(дистанционно)', content_str, re.UNICODE | re.IGNORECASE)) is not None:
-        location = 'Дистанционно'
+        location = config.get('STRINGS', 'distant')
         is_remote = True
         content_str = content_str.replace(_().groups()[0], '')
 
@@ -77,7 +77,7 @@ def parse_class(day, time, content):
         content_str = content_str.replace(_().groups()[0], '')
 
     title = ' '.join(content_str.strip().split(' '))
-    description = "Преподаватель: {}\n\n{}".format(teacher, '', '\n'.join(content))
+    description = "{}: {}\n\n{}".format(config.get('STRINGS', 'teacher'), teacher, '', '\n'.join(content))
     result = {
         'title': title,
         'description': description,
@@ -90,24 +90,22 @@ def parse_class(day, time, content):
     return result
 
 
-book = xlrd.open_workbook("schedule.xls")
+config = configparser.ConfigParser()
+config.read('config.ini', encoding='utf-8')
+
+book = xlrd.open_workbook(config.get('DEFAULT', 'filename'))  # TODO Принимать путь к файлу из аргументов
 sh = book.sheet_by_index(0)
 
-# Все индексы ячеек на 1 меньше относительно Excel
-# Столбцы:
-a = 22  # W11 Название группы
-b = 21  # V11 Время начала и конца
-c = 20  # U11 День недели
-col_start = 10  # Строка, с которой начинается расписание (включая название группы)
+col_start = config.get('EXCEL', 'row_begin')  # Строка, с которой начинается расписание (включая название группы)
 row_count = 5 * 6 * 4  # 5 пар в день, 6 дней в неделю, 4 строки на пару
 
 schedule = {}
 day = ''
 time = ''
 for row in range(col_start + 1, col_start + 1 + row_count):
-    _day = sh.cell_value(rowx=row, colx=c)
-    _time = sh.cell_value(rowx=row, colx=b)
-    value = sh.cell_value(rowx=row, colx=a)
+    _day = sh.cell_value(rowx=row, colx=config.get('EXCEL', 'col_day'))
+    _time = sh.cell_value(rowx=row, colx=config.get('EXCEL', 'col_time'))
+    value = sh.cell_value(rowx=row, colx=config.get('EXCEL', 'col_class'))
 
     if not (_day.isspace() or len(_day) == 0):
         day = _day

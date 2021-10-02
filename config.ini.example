@@ -1,9 +1,10 @@
 [DEFAULT]
-; Путь к файлу с расписанием
 filename=schedule.xls
+add_full_text_to_description=false
 
 [STRINGS]
 distant=Дистанционно
+room=Ауд.
 teacher=Преподаватель
 
 [EXCEL]

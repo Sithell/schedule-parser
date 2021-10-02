@@ -52,7 +52,7 @@ def parse_class(day, time, content):
 
     # Аудитория
     if _(re.match(r'.*(ауд.? *(А?-?\d\d\d))', content_str, re.UNICODE | re.IGNORECASE)) is not None:
-        location = _().groups()[1]
+        location = config.get('STRINGS', 'room') + _().groups()[1]
         is_remote = False
         content_str = content_str.replace(_().groups()[0], '')
 
@@ -77,7 +77,12 @@ def parse_class(day, time, content):
         content_str = content_str.replace(_().groups()[0], '')
 
     title = ' '.join(content_str.strip().split(' '))
-    description = "{}: {}\n\n{}".format(config.get('STRINGS', 'teacher'), teacher, '', '\n'.join(content))
+    if teacher:
+        description += "{}: {}\n".format(config.get('STRINGS', 'teacher'), teacher)
+
+    if config.getboolean('DEFAULT', 'add_full_text_to_description'):
+        description += '\n'.join(content)
+
     result = {
         'title': title,
         'description': description,
@@ -96,16 +101,16 @@ config.read('config.ini', encoding='utf-8')
 book = xlrd.open_workbook(config.get('DEFAULT', 'filename'))  # TODO Принимать путь к файлу из аргументов
 sh = book.sheet_by_index(0)
 
-col_start = config.get('EXCEL', 'row_begin')  # Строка, с которой начинается расписание (включая название группы)
+col_start = config.getint('EXCEL', 'row_begin')  # Строка, с которой начинается расписание (включая название группы)
 row_count = 5 * 6 * 4  # 5 пар в день, 6 дней в неделю, 4 строки на пару
 
 schedule = {}
 day = ''
 time = ''
 for row in range(col_start + 1, col_start + 1 + row_count):
-    _day = sh.cell_value(rowx=row, colx=config.get('EXCEL', 'col_day'))
-    _time = sh.cell_value(rowx=row, colx=config.get('EXCEL', 'col_time'))
-    value = sh.cell_value(rowx=row, colx=config.get('EXCEL', 'col_class'))
+    _day = sh.cell_value(rowx=row, colx=config.getint('EXCEL', 'col_day'))
+    _time = sh.cell_value(rowx=row, colx=config.getint('EXCEL', 'col_time'))
+    value = sh.cell_value(rowx=row, colx=config.getint('EXCEL', 'col_class'))
 
     if not (_day.isspace() or len(_day) == 0):
         day = _day

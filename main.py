@@ -3,7 +3,8 @@ import re
 import json
 from time import strftime, strptime
 import configparser
-
+from datetime import datetime, date, timedelta
+from google_calendar import GoogleCalendar
 
 # Это либо гениально, либо очень тупо, но эта функция записывает значение в глобальную переменную
 # когда аргумент передается и возвращает последнее записанное значение, когда аргумента нет
@@ -39,8 +40,16 @@ def is_empty(array):
 # * Преподаватель
 # * Время
 # * Название предмета
-def parse_class(day, time, content):
+def parse_class(dayOfWeek, time, content):
     content_str = ' '.join(content)
+    day = {
+        'понедельник': 0,
+        'вторник': 1,
+        'среда': 2,
+        'четверг': 3,
+        'пятница': 4,
+        'суббота': 5,
+    }[dayOfWeek.lower()]
 
     location = ''
     title = ''
@@ -69,8 +78,14 @@ def parse_class(day, time, content):
         content_str = content_str.replace(teacher, '')
 
     # Время начала и конца
-    start = strftime('%H:%M', strptime(time.split('-')[0], '%H.%M'))
-    end = strftime('%H:%M', strptime(time.split('-')[1], '%H.%M'))
+    today = date.today()
+    today = datetime(today.year, today.month, today.day)
+    today += timedelta(days=day - today.weekday())
+
+    start = strptime(time.split('-')[0], '%H.%M')
+    start = timedelta(hours=start.tm_hour, minutes=start.tm_min)
+    end = strptime(time.split('-')[1], '%H.%M')
+    end = timedelta(hours=end.tm_hour, minutes=end.tm_min)
 
     # Убрать слово "Авиамоторная"
     if _(re.match(r'.*(авиамоторная)', content_str, re.UNICODE | re.IGNORECASE)) is not None:
@@ -87,11 +102,17 @@ def parse_class(day, time, content):
         'title': title,
         'description': description,
         'location': location,
-        'start': start,
-        'end': end
+        'start': today + start,
+        'end': today + end
     }
-
-    pretty_print(result)
+    print(result)
+    google_calendar.insert_event(
+        google_calendar.format_time(result['start']),
+        google_calendar.format_time(result['end']),
+        result['title'],
+        result['location'],
+        result['description']
+    )
     return result
 
 
@@ -128,8 +149,12 @@ for row in range(col_start + 1, col_start + 1 + row_count):
 
 del _day, day, _time, time, value
 
+google_calendar = GoogleCalendar(config.get('GOOGLE', 'calendar_id'))
+
 for day in schedule.keys():
+    print(day + ': ')
     for time in schedule.get(day).keys():
+        print(time)
         lessons = schedule.get(day).get(time)
         if is_empty(lessons):  # Пары нет
             continue
@@ -143,3 +168,4 @@ for day in schedule.keys():
             continue
 
         parse_class(day, time, [_ for _ in lessons if _])
+

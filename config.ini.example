@@ -13,3 +13,9 @@ row_begin=10
 col_day=20
 col_time=21
 col_class=22
+
+[GOOGLE]
+client_id=
+client_secret=
+api_key=
+calendar_id=

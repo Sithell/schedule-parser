@@ -1,3 +1,9 @@
 /venv
 /.idea
+__pycache__/
 schedule.xls
+token.json
+credentials.json
+config.ini
+events.txt
+

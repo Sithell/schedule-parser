@@ -1,10 +1,10 @@
 import xlrd
 import re
 import json
-from time import strftime, strptime
+from time import strptime
 import configparser
 from datetime import datetime, date, timedelta
-from google_calendar import GoogleCalendar
+from libs.google_calendar import GoogleCalendar
 
 # Это либо гениально, либо очень тупо, но эта функция записывает значение в глобальную переменную
 # когда аргумент передается и возвращает последнее записанное значение, когда аргумента нет
@@ -35,12 +35,18 @@ def is_empty(array):
     return True
 
 
+def is_upper_week(date):
+    # TODO По дате определять верхняя это неделя или нижняя
+    return True
+
 # С помощью регулярок вытаскивает из описания пары инфу:
 # * Место проведения
 # * Преподаватель
 # * Время
 # * Название предмета
-def parse_class(dayOfWeek, time, content):
+# week - None, 'upper', 'lower'
+# Предполагаем, что сегодня верхняя неделя
+def parse_class(dayOfWeek, time, content, week=None):
     content_str = ' '.join(content)
     day = {
         'понедельник': 0,
@@ -52,12 +58,8 @@ def parse_class(dayOfWeek, time, content):
     }[dayOfWeek.lower()]
 
     location = ''
-    title = ''
     description = ''
     teacher = ''
-    start = ''
-    end = ''
-    is_remote = False
 
     # Аудитория
     if _(re.match(r'.*(ауд.? *(А?-?\d\d\d))', content_str, re.UNICODE | re.IGNORECASE)) is not None:
@@ -82,6 +84,14 @@ def parse_class(dayOfWeek, time, content):
     today = datetime(today.year, today.month, today.day)
     today += timedelta(days=day - today.weekday())
 
+    if week is not None:
+        if (is_upper_week(today) and week == 'lower') or (not is_upper_week(today) and week == 'upper'):
+            today += timedelta(days=7)
+
+        interval = 2
+    else:
+        interval = 1
+
     start = strptime(time.split('-')[0], '%H.%M')
     start = timedelta(hours=start.tm_hour, minutes=start.tm_min)
     end = strptime(time.split('-')[1], '%H.%M')
@@ -90,6 +100,10 @@ def parse_class(dayOfWeek, time, content):
     # Убрать слово "Авиамоторная"
     if _(re.match(r'.*(авиамоторная)', content_str, re.UNICODE | re.IGNORECASE)) is not None:
         content_str = content_str.replace(_().groups()[0], '')
+
+    # Убрать слово "ауд."
+    if _(re.match(r'.*( *ауд\.?)', content_str, re.UNICODE | re.IGNORECASE)) is not None:
+            content_str = content_str.replace(_().groups()[0], '')
 
     title = ' '.join(content_str.strip().split(' '))
     if teacher:
@@ -105,14 +119,19 @@ def parse_class(dayOfWeek, time, content):
         'start': today + start,
         'end': today + end
     }
-    print(result)
-    google_calendar.insert_event(
+    event = google_calendar.insert_event(
         google_calendar.format_time(result['start']),
         google_calendar.format_time(result['end']),
         result['title'],
+        result['description'],
         result['location'],
-        result['description']
+        interval=interval
     )
+    print(time, event.summary)
+    with open('events.txt', 'a', encoding='utf-8') as file:
+        json.dump(event.asdict(), file, ensure_ascii=False)
+        print(file=file)
+
     return result
 
 
@@ -154,17 +173,19 @@ google_calendar = GoogleCalendar(config.get('GOOGLE', 'calendar_id'))
 for day in schedule.keys():
     print(day + ': ')
     for time in schedule.get(day).keys():
-        print(time)
         lessons = schedule.get(day).get(time)
         if is_empty(lessons):  # Пары нет
             continue
 
-        if len(lessons[0]) > 0:  # Если первая строка заполнена, то сложный кейс
-            # TODO Разделение на верхнюю и нижнюю неделю
-            parse_class(day, time, lessons[:2])
+        if len(lessons[0]) > 0:  # Если первая строка заполнена, то есть верхняя неделя
+            parse_class(day, time, lessons[:2], week='upper')
             if not is_empty(lessons[2:]):
-                parse_class(day, time, lessons[2:])
+                parse_class(day, time, lessons[2:], week='lower')
 
+            continue
+
+        if is_empty(lessons[:2]) and not is_empty(lessons[2:]):  # Только нижняя неделя
+            parse_class(day, time, lessons[2:], week='lower')
             continue
 
         parse_class(day, time, [_ for _ in lessons if _])
